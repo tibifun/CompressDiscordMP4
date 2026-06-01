@@ -1,0 +1,46 @@
+@echo off
+:: Correcao para SendTo
+cd /d "%~dp1"
+setlocal EnableDelayedExpansion
+TITLE NVENC AV1 - (RTX 5080)
+
+set "input=%~1"
+set "output=%~dpn1_AV1_DISCORD.mp4"
+
+if "%input%"=="" (
+    echo [ERRO] Usa o "Enviar para".
+    pause
+    exit /b
+)
+
+:: Obtain Duration
+set duration=0
+for /f "tokens=1 delims=." %%a in ('ffprobe -v error -show_entries format^=duration -of default^=noprint_wrappers^=1:nokey^=1 "%input%" 2^>nul') do set duration=%%a
+if "!duration!"=="" set duration=60
+
+:: 
+:: Goal: 9.3 MB ( ~76000 kbits )
+::
+set /a targetSizeKb=76000
+set /a totalBitrate=%targetSizeKb% / !duration!
+set /a videoBitrate=%totalBitrate% - 64
+
+:: Limite de seguranca
+if %videoBitrate% lss 100 set videoBitrate=100
+
+echo.
+echo ==================================================
+echo  Ficheiro: "%~n1"
+echo  Duracao: !duration!s
+echo  Bitrate Base: %videoBitrate%k
+echo  Hardware: RTX 5080 (NVENC AV1)
+echo  Modo: VBR + Lookahead (Sem blocos)
+echo ==================================================
+echo.
+
+
+ffmpeg -y -hwaccel cuda -i "%input%" -c:v av1_nvenc -preset p7 -tune hq -rc vbr -b:v %videoBitrate%k -maxrate %videoBitrate%k -bufsize 2000k -rc-lookahead 32 -spatial-aq 1 -temporal-aq 1 -multipass 1 -vf "scale=1280:720:flags=lanczos" -c:a aac -b:a 64k "%output%"
+
+echo.
+echo Feito.
+pause
